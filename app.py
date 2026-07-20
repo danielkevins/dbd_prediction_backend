@@ -107,8 +107,8 @@ def get_predict_full():
     try:
         # --- A. Ambil Data Aktual Terbaru dari Database ---
         conn = sqlite3.connect('database_dbd_cuaca.db')
-        
-        query = "SELECT periode, kasus, rainfall, avg_humidity, max_temp, avg_temp FROM data_kasus_cuaca" 
+        # PENTING: Tambahkan max_temp dan avg_temp pada query SELECT
+        query = "SELECT periode, kasus, rainfall, avg_humidity, max_temp, avg_temp FROM data_kasus_cuaca ORDER BY periode DESC LIMIT 5" 
         df_exog = pd.read_sql_query(query, conn)
         conn.close()
 
