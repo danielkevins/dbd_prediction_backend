@@ -42,7 +42,7 @@ def get_dashboard_stats():
         df = pd.read_csv('data_dbd_mergeNew.csv')
         
         df['jumlah_penduduk'] = df['jumlah_penduduk'].apply(clean_numeric)
-        df['kasus_positif'] = df['kasus_positif'].apply(clean_numeric).astype(int)
+        df['kasus'] = df['kasus'].apply(clean_numeric).astype(int)
         df['kasus_meninggal'] = df['kasus_meninggal'].apply(clean_numeric).astype(int)
         df['periode_dt'] = pd.to_datetime(df['periode'], format='%m/%Y')
         df['tahun'] = df['periode_dt'].dt.year
@@ -50,26 +50,26 @@ def get_dashboard_stats():
 
         df_year = df[df['tahun'] == int(tahun_input)].copy()
 
-        total_kasus = int(df_year['kasus_positif'].sum())
+        total_kasus = int(df_year['kasus'].sum())
         total_meninggal = int(df_year['kasus_meninggal'].sum())
         
         kec_summary = df_year.groupby('kecamatan').agg({
-            'kasus_positif': 'sum',
+            'kasus': 'sum',
             'kasus_meninggal': 'sum',
             'jumlah_penduduk': 'mean'
         })
         
-        kec_summary['ir_tahunan'] = (kec_summary['kasus_positif'] / kec_summary['jumlah_penduduk']) * 100000
+        kec_summary['ir_tahunan'] = (kec_summary['kasus'] / kec_summary['jumlah_penduduk']) * 100000
         
         map_data = {}
         for index, row in kec_summary.iterrows():
             map_data[index] = {
                 "ir": round(float(row['ir_tahunan']), 2),
-                "kasus": int(row['kasus_positif']),
+                "kasus": int(row['kasus']),
                 "meninggal": int(row['kasus_meninggal'])
             }
 
-        monthly = df_year.groupby(df_year['periode_dt'].dt.month)['kasus_positif'].sum()
+        monthly = df_year.groupby(df_year['periode_dt'].dt.month)['kasus'].sum()
         bulan_nama = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des']
         trend_data = [{"label": bulan_nama[m-1], "value": int(v)} for m, v in monthly.items()]
 
@@ -77,7 +77,7 @@ def get_dashboard_stats():
         sedang = int(len(kec_summary[(kec_summary['ir_tahunan'] >= 20) & (kec_summary['ir_tahunan'] <= 55)]))
         tinggi = int(len(kec_summary[kec_summary['ir_tahunan'] > 55]))
 
-        top_kec = kec_summary['kasus_positif'].sort_values(ascending=False).head(10).to_dict()
+        top_kec = kec_summary['kasus'].sort_values(ascending=False).head(10).to_dict()
 
         return jsonify({
             "cards": {
@@ -107,8 +107,8 @@ def get_predict_full():
     try:
         # --- A. Ambil Data Aktual Terbaru dari Database ---
         conn = sqlite3.connect('database_dbd_cuaca.db')
-        # PENTING: Tambahkan max_temp dan avg_temp pada query SELECT
-        query = "SELECT periode, kasus_positif, rainfall, avg_humidity, max_temp, avg_temp FROM data_kasus_cuaca ORDER BY periode DESC LIMIT 12" 
+        
+        query = "SELECT periode, kasus, rainfall, avg_humidity, max_temp, avg_temp FROM data_kasus_cuaca" 
         df_exog = pd.read_sql_query(query, conn)
         conn.close()
 
@@ -118,7 +118,7 @@ def get_predict_full():
         df_exog = df_exog.iloc[::-1].reset_index(drop=True)
 
         hist_labels = [pd.to_datetime(d).strftime('%b %y') for d in df_exog['periode']]
-        hist_values = [int(v) for v in df_exog['kasus_positif']]
+        hist_values = [int(v) for v in df_exog['kasus']]
 
         # --- B. Buat 1 Baris Masa Depan ---
         last_date = pd.to_datetime(df_exog['periode'].iloc[-1])
@@ -127,7 +127,7 @@ def get_predict_full():
         # Sertakan semua kolom cuaca dengan nilai NaN untuk baris masa depan
         dummy_df = pd.DataFrame({
             'periode': [future_date],
-            'kasus_positif': [np.nan],
+            'kasus': [np.nan],
             'rainfall': [np.nan],
             'avg_humidity': [np.nan],
             'max_temp': [np.nan],
@@ -138,7 +138,7 @@ def get_predict_full():
 
         # --- C. Feature Engineering (Eksklusif untuk 5 Fitur Pilihan) ---
         # 1. kasus_lag_1
-        df_combined['kasus_lag_1'] = df_combined['kasus_positif'].shift(1)
+        df_combined['kasus_lag_1'] = df_combined['kasus'].shift(1)
         
         # 2. max_temp_lag_1
         df_combined['max_temp_lag_1'] = df_combined['max_temp'].shift(1)
